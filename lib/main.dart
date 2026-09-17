@@ -2,21 +2,67 @@ import 'package:flutter/material.dart';
 
 void main() => runApp(const MyApp());
 
-const _teal = Color(0xFF176B87);
-const _ink = Color(0xFF16333B);
-const _muted = Color(0xFF6D8286);
+// Pastel palette
+const _teal = Color(0xFF9B8ED6); // pastel lavender-violet (primary accent)
+const _ink = Color(0xFF5B5470); // soft plum for headings/text
+const _muted = Color(0xFF9C93AD); // muted lavender-grey for secondary text
 
-class MyApp extends StatelessWidget {
+class StudentSettings {
+  StudentSettings({
+    this.name = 'Rahul Patel',
+    this.enrollmentNo = '24CE001',
+    this.department = 'Computer Engineering',
+    this.semester = 'Semester V',
+    this.language = 'English',
+    this.darkMode = false,
+    this.assignmentAlerts = true,
+    this.examNotifications = true,
+    this.placementUpdates = true,
+    this.eventAnnouncements = true,
+    this.cardScale = 0.5,
+    Set<String>? courses,
+  }) : courses = courses ?? {
+          'Mobile Application Development',
+          'Artificial Intelligence',
+        };
+
+  String name;
+  String enrollmentNo;
+  String department;
+  String semester;
+  String language;
+  bool darkMode;
+  bool assignmentAlerts;
+  bool examNotifications;
+  bool placementUpdates;
+  bool eventAnnouncements;
+  double cardScale;
+  Set<String> courses;
+}
+
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  final _settings = StudentSettings();
+
+  void _updateSettings(void Function(StudentSettings settings) update) {
+    setState(() => update(_settings));
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Campusly',
       debugShowCheckedModeBanner: false,
+      themeMode: _settings.darkMode ? ThemeMode.dark : ThemeMode.light,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: _teal),
-        scaffoldBackgroundColor: const Color(0xFFF5F8F8),
+        scaffoldBackgroundColor: const Color(0xFFFAF6FF),
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.transparent,
           foregroundColor: _ink,
@@ -34,12 +80,12 @@ class MyApp extends StatelessWidget {
           margin: EdgeInsets.zero,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-            side: const BorderSide(color: Color(0xFFE3ECEC), width: 1),
+            side: const BorderSide(color: Color(0xFFECE4FB), width: 1),
           ),
         ),
         navigationBarTheme: NavigationBarThemeData(
           backgroundColor: Colors.white,
-          indicatorColor: const Color(0xFFDDF3EC),
+          indicatorColor: const Color(0xFFE3DBF9),
           elevation: 4,
           labelTextStyle: WidgetStatePropertyAll(
             const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
@@ -71,7 +117,7 @@ class MyApp extends StatelessWidget {
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: Color(0xFFE0E9EA)),
+            borderSide: const BorderSide(color: Color(0xFFE6DDF7)),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
@@ -79,13 +125,43 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const SplashScreen(),
+      darkTheme: ThemeData(
+        brightness: Brightness.dark,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: _teal,
+          brightness: Brightness.dark,
+        ),
+        scaffoldBackgroundColor: const Color(0xFF221E30),
+        cardTheme: CardThemeData(
+          color: const Color(0xFF332C47),
+          elevation: 0,
+          margin: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+        ),
+      ),
+      home: SplashScreen(
+        settings: _settings,
+        onSettingsChanged: _updateSettings,
+      ),
     );
   }
 }
 
 class SplashScreen extends StatelessWidget {
-  const SplashScreen({super.key});
+  const SplashScreen({
+    super.key,
+    required this.settings,
+    required this.onSettingsChanged,
+  });
+  final StudentSettings settings;
+  final void Function(void Function(StudentSettings settings))
+      onSettingsChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -130,7 +206,12 @@ class SplashScreen extends StatelessWidget {
                 child: FilledButton(
                   onPressed: () => Navigator.pushReplacement(
                     context,
-                    MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    MaterialPageRoute(
+                      builder: (_) => LoginScreen(
+                        settings: settings,
+                        onSettingsChanged: onSettingsChanged,
+                      ),
+                    ),
                   ),
                   child: const Text('Get started'),
                 ),
@@ -155,7 +236,14 @@ class SplashScreen extends StatelessWidget {
 }
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({
+    super.key,
+    required this.settings,
+    required this.onSettingsChanged,
+  });
+  final StudentSettings settings;
+  final void Function(void Function(StudentSettings settings))
+      onSettingsChanged;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -177,7 +265,12 @@ class _LoginScreenState extends State<LoginScreen> {
     if (_formKey.currentState!.validate()) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const DashboardScreen()),
+        MaterialPageRoute(
+          builder: (_) => DashboardScreen(
+            settings: widget.settings,
+            onSettingsChanged: widget.onSettingsChanged,
+          ),
+        ),
       );
     }
   }
@@ -242,7 +335,12 @@ class _LoginScreenState extends State<LoginScreen> {
             TextButton(
               onPressed: () => Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const RegistrationScreen()),
+                MaterialPageRoute(
+                  builder: (_) => RegistrationScreen(
+                    settings: widget.settings,
+                    onSettingsChanged: widget.onSettingsChanged,
+                  ),
+                ),
               ),
               child: const Text("Don't have an account? Create one"),
             ),
@@ -254,7 +352,14 @@ class _LoginScreenState extends State<LoginScreen> {
 }
 
 class RegistrationScreen extends StatefulWidget {
-  const RegistrationScreen({super.key});
+  const RegistrationScreen({
+    super.key,
+    required this.settings,
+    required this.onSettingsChanged,
+  });
+  final StudentSettings settings;
+  final void Function(void Function(StudentSettings settings))
+      onSettingsChanged;
 
   @override
   State<RegistrationScreen> createState() => _RegistrationScreenState();
@@ -278,7 +383,12 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     if (_formKey.currentState!.validate()) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const DashboardScreen()),
+        MaterialPageRoute(
+          builder: (_) => DashboardScreen(
+            settings: widget.settings,
+            onSettingsChanged: widget.onSettingsChanged,
+          ),
+        ),
       );
     }
   }
@@ -411,49 +521,20 @@ class AppField extends StatelessWidget {
 }
 
 class DashboardScreen extends StatelessWidget {
-  const DashboardScreen({super.key});
-
-  static const _modules = [
-    (
-      'Attendance',
-      '92% this semester',
-      Icons.fact_check_outlined,
-      Color(0xFFDDF3EC),
-    ),
-    (
-      'Timetable',
-      'Next: Design studio at 10:00',
-      Icons.calendar_month_outlined,
-      Color(0xFFFFEBD1),
-    ),
-    (
-      'Assignments',
-      '3 due this week',
-      Icons.assignment_outlined,
-      Color(0xFFE8E3FA),
-    ),
-    (
-      'Notes',
-      'Keep ideas in one place',
-      Icons.sticky_note_2_outlined,
-      Color(0xFFDCECF5),
-    ),
-    (
-      'Events',
-      '2 campus events nearby',
-      Icons.event_outlined,
-      Color(0xFFFFE0E2),
-    ),
-    (
-      'Notifications',
-      'You are all caught up',
-      Icons.notifications_none_rounded,
-      Color(0xFFE1F0D9),
-    ),
-  ];
+  const DashboardScreen({
+    super.key,
+    required this.settings,
+    required this.onSettingsChanged,
+  });
+  final StudentSettings settings;
+  final void Function(void Function(StudentSettings settings))
+      onSettingsChanged;
 
   @override
-  Widget build(BuildContext context) => const MainShell();
+  Widget build(BuildContext context) => MainShell(
+    settings: settings,
+    onSettingsChanged: onSettingsChanged,
+  );
 }
 
 class ModuleCard extends StatelessWidget {
@@ -528,7 +609,7 @@ class ProfileScreen extends StatelessWidget {
       children: [
         const CircleAvatar(
           radius: 44,
-          backgroundColor: Color(0xFFD7E8EA),
+          backgroundColor: Color(0xFFE3DBF9),
           child: Text(
             'RP',
             style: TextStyle(
@@ -605,7 +686,14 @@ class ProfileInfo extends StatelessWidget {
 }
 
 class MainShell extends StatefulWidget {
-  const MainShell({super.key});
+  const MainShell({
+    super.key,
+    required this.settings,
+    required this.onSettingsChanged,
+  });
+  final StudentSettings settings;
+  final void Function(void Function(StudentSettings settings))
+      onSettingsChanged;
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -614,18 +702,22 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _selectedIndex = 0;
 
-  static const _pages = [
-    OverviewTab(),
-    AttendanceTab(),
-    TimetableTab(),
-    AssignmentsTab(),
-    MoreTab(),
-  ];
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(index: _selectedIndex, children: _pages),
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: [
+          OverviewTab(settings: widget.settings),
+          const AttendanceTab(),
+          const TimetableTab(),
+          const AssignmentsTab(),
+          MoreTab(
+            settings: widget.settings,
+            onSettingsChanged: widget.onSettingsChanged,
+          ),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
         onDestinationSelected: (index) =>
@@ -662,7 +754,8 @@ class _MainShellState extends State<MainShell> {
 }
 
 class OverviewTab extends StatelessWidget {
-  const OverviewTab({super.key});
+  const OverviewTab({super.key, required this.settings});
+  final StudentSettings settings;
 
   static const _modules = [
     ('Attendance', '91% overall', Icons.fact_check_outlined, Color(0xFFDDF3EC)),
@@ -693,14 +786,14 @@ class OverviewTab extends StatelessWidget {
                   delegate: SliverChildListDelegate([
                     Row(
                       children: [
-                        const Expanded(
+                        Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text('Good morning', style: TextStyle(color: _muted)),
                               SizedBox(height: 4),
                               Text(
-                                'Rahul Patel',
+                                settings.name,
                                 style: TextStyle(
                                   color: _ink,
                                   fontSize: 27,
@@ -731,7 +824,7 @@ class OverviewTab extends StatelessWidget {
                           ),
                           icon: const CircleAvatar(
                             radius: 20,
-                            backgroundColor: Color(0xFFD7E8EA),
+                            backgroundColor: Color(0xFFE3DBF9),
                             child: Text('RP', style: TextStyle(color: _teal, fontWeight: FontWeight.bold)),
                           ),
                         ),
@@ -754,7 +847,7 @@ class OverviewTab extends StatelessWidget {
                                   children: [
                                     Text('Your semester at a glance', style: TextStyle(color: Colors.white, fontSize: 21, fontWeight: FontWeight.w800)),
                                     SizedBox(height: 10),
-                                    Text('Semester V  •  24CE001', style: TextStyle(color: Color(0xFFC7E4E8))),
+                                    Text('Semester V  •  24CE001', style: TextStyle(color: Color(0xFFE9E1FA))),
                                   ],
                                 ),
                               ),
@@ -775,7 +868,9 @@ class OverviewTab extends StatelessWidget {
                         crossAxisCount: wide ? 3 : 2,
                         crossAxisSpacing: 14,
                         mainAxisSpacing: 14,
-                        childAspectRatio: wide ? 1.55 : 1.08,
+                        childAspectRatio: wide
+                          ? 1.25 + settings.cardScale * 0.6
+                          : 0.9 + settings.cardScale * 0.35,
                       ),
                       itemBuilder: (context, index) {
                         final module = _modules[index];
@@ -970,7 +1065,14 @@ class AssignmentsTab extends StatelessWidget {
 }
 
 class MoreTab extends StatelessWidget {
-  const MoreTab({super.key});
+  const MoreTab({
+    super.key,
+    required this.settings,
+    required this.onSettingsChanged,
+  });
+  final StudentSettings settings;
+  final void Function(void Function(StudentSettings settings))
+      onSettingsChanged;
 
   @override
   Widget build(BuildContext context) => PageFrame(
@@ -978,9 +1080,251 @@ class MoreTab extends StatelessWidget {
     subtitle: 'People, updates, and moments from campus.',
     child: Column(
       children: [
+        MoreAction(
+          title: 'Profile & preferences',
+          subtitle: '${settings.semester}  •  ${settings.language}',
+          icon: Icons.tune_rounded,
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => SettingsScreen(
+                settings: settings,
+                onSettingsChanged: onSettingsChanged,
+              ),
+            ),
+          ),
+        ),
         MoreAction(title: 'Notifications', subtitle: 'Internal exam and deadline updates', icon: Icons.notifications_none_rounded, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen()))),
         MoreAction(title: 'Faculty information', subtitle: 'Find office hours and contact details', icon: Icons.people_outline_rounded, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FacultyScreen()))),
         MoreAction(title: 'Event gallery', subtitle: 'Explore upcoming campus experiences', icon: Icons.photo_library_outlined, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GalleryScreen()))),
+      ],
+    ),
+  );
+}
+
+class SettingsScreen extends StatefulWidget {
+  const SettingsScreen({
+    super.key,
+    required this.settings,
+    required this.onSettingsChanged,
+  });
+  final StudentSettings settings;
+  final void Function(void Function(StudentSettings settings))
+      onSettingsChanged;
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  late final TextEditingController _nameController;
+  late String _semester;
+  late String _language;
+  late bool _darkMode;
+  late bool _assignmentAlerts;
+  late bool _examNotifications;
+  late bool _placementUpdates;
+  late bool _eventAnnouncements;
+  late double _cardScale;
+  late Set<String> _courses;
+
+  static const _semesters = [
+    'Semester I',
+    'Semester II',
+    'Semester III',
+    'Semester IV',
+    'Semester V',
+    'Semester VI',
+    'Semester VII',
+    'Semester VIII',
+  ];
+  static const _languages = ['English', 'Hindi', 'Gujarati'];
+  static const _courseOptions = [
+    'Mobile Application Development',
+    'Artificial Intelligence',
+    'Database Management System',
+    'Computer Networks',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    final settings = widget.settings;
+    _nameController = TextEditingController(text: settings.name);
+    _semester = settings.semester;
+    _language = settings.language;
+    _darkMode = settings.darkMode;
+    _assignmentAlerts = settings.assignmentAlerts;
+    _examNotifications = settings.examNotifications;
+    _placementUpdates = settings.placementUpdates;
+    _eventAnnouncements = settings.eventAnnouncements;
+    _cardScale = settings.cardScale;
+    _courses = {...settings.courses};
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  void _saveSettings() {
+    widget.onSettingsChanged((settings) {
+      settings.name = _nameController.text.trim().isEmpty
+          ? 'Rahul Patel'
+          : _nameController.text.trim();
+      settings.semester = _semester;
+      settings.language = _language;
+      settings.darkMode = _darkMode;
+      settings.assignmentAlerts = _assignmentAlerts;
+      settings.examNotifications = _examNotifications;
+      settings.placementUpdates = _placementUpdates;
+      settings.eventAnnouncements = _eventAnnouncements;
+      settings.cardScale = _cardScale;
+      settings.courses = {..._courses};
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Preferences saved for this session')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: const Text('Profile & preferences'),
+      actions: [
+        IconButton(
+          tooltip: 'Save preferences',
+          onPressed: _saveSettings,
+          icon: const Icon(Icons.save_outlined),
+        ),
+      ],
+    ),
+    body: ListView(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+      children: [
+        const Text('Student profile', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: _nameController,
+          decoration: const InputDecoration(labelText: 'Name', prefixIcon: Icon(Icons.person_outline_rounded)),
+        ),
+        const SizedBox(height: 12),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.badge_outlined, color: _teal),
+            title: Text(widget.settings.enrollmentNo),
+            subtitle: Text(widget.settings.department),
+            trailing: const Text('Enrollment', style: TextStyle(color: _muted, fontSize: 12)),
+          ),
+        ),
+        const SizedBox(height: 24),
+        const Text('Academic preferences', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 12),
+        DropdownButtonFormField<String>(
+          initialValue: _semester,
+          decoration: const InputDecoration(labelText: 'Semester', prefixIcon: Icon(Icons.school_outlined)),
+          items: _semesters.map((semester) => DropdownMenuItem(value: semester, child: Text(semester))).toList(),
+          onChanged: (value) => setState(() => _semester = value ?? _semester),
+        ),
+        const SizedBox(height: 16),
+        const Text('Language', style: TextStyle(fontWeight: FontWeight.w700)),
+        RadioGroup<String>(
+          groupValue: _language,
+          onChanged: (value) => setState(() => _language = value ?? _language),
+          child: Column(
+            children: _languages
+                .map((language) => RadioListTile<String>(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(language),
+                      value: language,
+                    ))
+                .toList(),
+          ),
+        ),
+        const SizedBox(height: 12),
+        const Text('Theme', style: TextStyle(fontWeight: FontWeight.w700)),
+        RadioGroup<bool>(
+          groupValue: _darkMode,
+          onChanged: (value) => setState(() => _darkMode = value ?? false),
+          child: Column(
+            children: const [
+              RadioListTile<bool>(
+                contentPadding: EdgeInsets.zero,
+                title: Text('Light theme'),
+                value: false,
+              ),
+              RadioListTile<bool>(
+                contentPadding: EdgeInsets.zero,
+                title: Text('Dark theme'),
+                value: true,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        const Text('Notification preferences', style: TextStyle(fontWeight: FontWeight.w700)),
+        CheckboxListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Assignment alerts'),
+          value: _assignmentAlerts,
+          onChanged: (value) => setState(() => _assignmentAlerts = value ?? false),
+        ),
+        CheckboxListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Examination notifications'),
+          value: _examNotifications,
+          onChanged: (value) => setState(() => _examNotifications = value ?? false),
+        ),
+        CheckboxListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Placement updates'),
+          value: _placementUpdates,
+          onChanged: (value) => setState(() => _placementUpdates = value ?? false),
+        ),
+        CheckboxListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Event announcements'),
+          value: _eventAnnouncements,
+          onChanged: (value) => setState(() => _eventAnnouncements = value ?? false),
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Dark mode preview'),
+          subtitle: const Text('Apply the selected theme when saved'),
+          value: _darkMode,
+          onChanged: (value) => setState(() => _darkMode = value),
+        ),
+        const SizedBox(height: 12),
+        Text('Dashboard card size: ${(_cardScale * 100).round()}%'),
+        Slider(
+          value: _cardScale,
+          min: 0,
+          max: 1,
+          divisions: 4,
+          label: '${(_cardScale * 100).round()}%',
+          onChanged: (value) => setState(() => _cardScale = value),
+        ),
+        const SizedBox(height: 12),
+        const Text('Course preferences', style: TextStyle(fontWeight: FontWeight.w700)),
+        ..._courseOptions.map((course) => CheckboxListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(course),
+          value: _courses.contains(course),
+          onChanged: (selected) => setState(() {
+            if (selected ?? false) {
+              _courses.add(course);
+            } else {
+              _courses.remove(course);
+            }
+          }),
+        )),
+        const SizedBox(height: 12),
+        FilledButton.icon(
+          onPressed: _saveSettings,
+          icon: const Icon(Icons.check_rounded),
+          label: const Text('Save preferences'),
+        ),
       ],
     ),
   );
