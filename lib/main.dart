@@ -1,6 +1,53 @@
 import 'package:flutter/material.dart';
 
-void main() => runApp(const MyApp());
+import 'preferences_service.dart';
+
+void main() {
+  // Required before touching SharedPreferences (or any plugin) pre-runApp.
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const MyApp());
+}
+
+// Named routes (Practical 5) for the screens that don't need extra
+// constructor arguments beyond the shared StudentSettings instance.
+// Screens that need one-off data (e.g. a specific event) still use
+// Navigator.push(MaterialPageRoute(...)) instead.
+class AppRoutes {
+  AppRoutes._();
+  static const login = '/login';
+  static const register = '/register';
+  static const dashboard = '/dashboard';
+}
+
+/// Practical 5: Logout clears the saved session (and preferences) via
+/// SharedPreferences, then replaces the ENTIRE navigation stack with the
+/// named '/login' route — so no amount of pressing "back" reveals the
+/// Dashboard again.
+Future<void> logOut(BuildContext context) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('Log out?'),
+      content: const Text('You will need to sign in again next time.'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext, false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(dialogContext, true),
+          child: const Text('Log out'),
+        ),
+      ],
+    ),
+  );
+  if (confirmed != true) return;
+
+  await PreferencesService.clearSession();
+  if (!context.mounted) return;
+  Navigator.of(context)
+      .pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
+}
 
 // Pastel palette
 const _teal = Color(0xFF9B8ED6); // pastel lavender-violet (primary accent)
@@ -149,11 +196,28 @@ class _MyAppState extends State<MyApp> {
         settings: _settings,
         onSettingsChanged: _updateSettings,
       ),
+      // Named routes: reused by Login, Register and Logout so the whole
+      // auth stack can be swapped in one call to pushNamedAndRemoveUntil,
+      // instead of manually popping every screen one by one.
+      routes: {
+        AppRoutes.login: (_) => LoginScreen(
+              settings: _settings,
+              onSettingsChanged: _updateSettings,
+            ),
+        AppRoutes.register: (_) => RegistrationScreen(
+              settings: _settings,
+              onSettingsChanged: _updateSettings,
+            ),
+        AppRoutes.dashboard: (_) => DashboardScreen(
+              settings: _settings,
+              onSettingsChanged: _updateSettings,
+            ),
+      },
     );
   }
 }
 
-class SplashScreen extends StatelessWidget {
+class SplashScreen extends StatefulWidget {
   const SplashScreen({
     super.key,
     required this.settings,
@@ -164,7 +228,44 @@ class SplashScreen extends StatelessWidget {
       onSettingsChanged;
 
   @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  // true while we're still checking SharedPreferences for a saved session.
+  bool _checkingSession = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkSavedSession();
+  }
+
+  // Practical 5: "Splash Screen that checks the login session automatically".
+  // If a session was saved (via SharedPreferences), skip straight to the
+  // Dashboard with saved preferences restored. Otherwise fall through to
+  // the normal splash UI with its "Get started" button.
+  Future<void> _checkSavedSession() async {
+    await Future.delayed(const Duration(milliseconds: 600)); // let splash show
+    final loggedIn = await PreferencesService.isLoggedIn();
+    if (loggedIn) {
+      await PreferencesService.loadPreferencesInto(widget.settings);
+      widget.onSettingsChanged((_) {}); // rebuild MaterialApp with loaded prefs
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _checkingSession = false);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_checkingSession) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -204,15 +305,11 @@ class SplashScreen extends StatelessWidget {
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: () => Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => LoginScreen(
-                        settings: settings,
-                        onSettingsChanged: onSettingsChanged,
-                      ),
-                    ),
-                  ),
+                  // Navigator.pushReplacementNamed: swaps the splash out for
+                  // the named '/login' route so the user can't navigate
+                  // "back" to the splash screen.
+                  onPressed: () =>
+                      Navigator.pushReplacementNamed(context, AppRoutes.login),
                   child: const Text('Get started'),
                 ),
               ),
@@ -261,18 +358,23 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _login() {
-    if (_formKey.currentState!.validate()) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => DashboardScreen(
-            settings: widget.settings,
-            onSettingsChanged: widget.onSettingsChanged,
-          ),
-        ),
-      );
-    }
+  Future<void> _login() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final email = _emailController.text.trim();
+    // Practical 5: persist the login session so the Splash screen can
+    // auto-navigate straight to the Dashboard next time the app opens.
+    await PreferencesService.saveSession(
+      username: email.split('@').first,
+      email: email,
+    );
+
+    if (!mounted) return;
+    // pushNamedAndRemoveUntil clears the whole Login/Splash stack, so the
+    // device back button on the Dashboard exits the app instead of
+    // returning to Login.
+    Navigator.of(context)
+        .pushNamedAndRemoveUntil(AppRoutes.dashboard, (route) => false);
   }
 
   @override
@@ -333,15 +435,10 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
             const SizedBox(height: 18),
             TextButton(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => RegistrationScreen(
-                    settings: widget.settings,
-                    onSettingsChanged: widget.onSettingsChanged,
-                  ),
-                ),
-              ),
+              // Navigator.pushNamed: goes to the named '/register' route
+              // (kept ON the stack, so its back arrow returns to Login).
+              onPressed: () =>
+                  Navigator.pushNamed(context, AppRoutes.register),
               child: const Text("Don't have an account? Create one"),
             ),
           ],
@@ -379,18 +476,18 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     super.dispose();
   }
 
-  void _register() {
-    if (_formKey.currentState!.validate()) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => DashboardScreen(
-            settings: widget.settings,
-            onSettingsChanged: widget.onSettingsChanged,
-          ),
-        ),
-      );
-    }
+  Future<void> _register() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final name = _name.text.trim();
+    final email = _email.text.trim();
+
+    widget.onSettingsChanged((settings) => settings.name = name);
+    await PreferencesService.saveSession(username: name, email: email);
+
+    if (!mounted) return;
+    Navigator.of(context)
+        .pushNamedAndRemoveUntil(AppRoutes.dashboard, (route) => false);
   }
 
   @override
@@ -702,9 +799,123 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _selectedIndex = 0;
 
+  // Shared destinations for BOTH the Drawer and the bottom NavigationBar,
+  // so the two navigation surfaces the practical asks for never fall out
+  // of sync with each other.
+  void _goToTab(int index) {
+    Navigator.pop(context); // close the drawer first
+    setState(() => _selectedIndex = index);
+  }
+
+  void _openPushedScreen(Widget screen) {
+    Navigator.pop(context); // close the drawer first
+    Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(title: const Text('Campusly')),
+      // Drawer Navigation (Practical 5): quick access to every module plus
+      // logout, complementing the bottom NavigationBar below.
+      drawer: Drawer(
+        child: SafeArea(
+          child: ListView(
+            padding: EdgeInsets.zero,
+            children: [
+              DrawerHeader(
+                decoration: const BoxDecoration(color: _teal),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    const CircleAvatar(
+                      radius: 22,
+                      backgroundColor: Colors.white,
+                      child: Icon(Icons.school_rounded, color: _teal),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      widget.settings.name,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 16,
+                      ),
+                    ),
+                    Text(
+                      widget.settings.enrollmentNo,
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                  ],
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.dashboard_outlined),
+                title: const Text('Home'),
+                selected: _selectedIndex == 0,
+                onTap: () => _goToTab(0),
+              ),
+              ListTile(
+                leading: const Icon(Icons.fact_check_outlined),
+                title: const Text('Attendance'),
+                selected: _selectedIndex == 1,
+                onTap: () => _goToTab(1),
+              ),
+              ListTile(
+                leading: const Icon(Icons.calendar_month_outlined),
+                title: const Text('Timetable'),
+                selected: _selectedIndex == 2,
+                onTap: () => _goToTab(2),
+              ),
+              ListTile(
+                leading: const Icon(Icons.assignment_outlined),
+                title: const Text('Assignments'),
+                selected: _selectedIndex == 3,
+                onTap: () => _goToTab(3),
+              ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.person_outline_rounded),
+                title: const Text('Profile'),
+                onTap: () => _openPushedScreen(const ProfileScreen()),
+              ),
+              ListTile(
+                leading: const Icon(Icons.tune_rounded),
+                title: const Text('Settings'),
+                onTap: () => _openPushedScreen(SettingsScreen(
+                  settings: widget.settings,
+                  onSettingsChanged: widget.onSettingsChanged,
+                )),
+              ),
+              ListTile(
+                leading: const Icon(Icons.notifications_none_rounded),
+                title: const Text('Notifications'),
+                onTap: () => _openPushedScreen(const NotificationsScreen()),
+              ),
+              ListTile(
+                leading: const Icon(Icons.people_outline_rounded),
+                title: const Text('Faculty'),
+                onTap: () => _openPushedScreen(const FacultyScreen()),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: const Text('Event gallery'),
+                onTap: () => _openPushedScreen(const GalleryScreen()),
+              ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.logout_rounded),
+                title: const Text('Log out'),
+                onTap: () {
+                  Navigator.pop(context); // close drawer first
+                  logOut(context);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
       body: IndexedStack(
         index: _selectedIndex,
         children: [
@@ -1097,6 +1308,13 @@ class MoreTab extends StatelessWidget {
         MoreAction(title: 'Notifications', subtitle: 'Internal exam and deadline updates', icon: Icons.notifications_none_rounded, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen()))),
         MoreAction(title: 'Faculty information', subtitle: 'Find office hours and contact details', icon: Icons.people_outline_rounded, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FacultyScreen()))),
         MoreAction(title: 'Event gallery', subtitle: 'Explore upcoming campus experiences', icon: Icons.photo_library_outlined, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GalleryScreen()))),
+        const SizedBox(height: 8),
+        MoreAction(
+          title: 'Log out',
+          subtitle: 'Clear saved session and preferences',
+          icon: Icons.logout_rounded,
+          onTap: () => logOut(context),
+        ),
       ],
     ),
   );
@@ -1168,7 +1386,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.dispose();
   }
 
-  void _saveSettings() {
+  Future<void> _saveSettings() async {
     widget.onSettingsChanged((settings) {
       settings.name = _nameController.text.trim().isEmpty
           ? 'Rahul Patel'
@@ -1183,8 +1401,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
       settings.cardScale = _cardScale;
       settings.courses = {..._courses};
     });
+
+    // Practical 5: write straight through to SharedPreferences so these
+    // choices are still there the next time the app is launched, not just
+    // for the rest of this session.
+    await PreferencesService.savePreferences(widget.settings);
+
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Preferences saved for this session')),
+      const SnackBar(content: Text('Preferences saved and will persist next launch')),
     );
   }
 
